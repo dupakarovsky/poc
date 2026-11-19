@@ -1,6 +1,8 @@
 .env
 .envrc
 .misc
+.postgres.env
+*.env
 
 # Project
 .excalidraw
