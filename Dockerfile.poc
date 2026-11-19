@@ -1,0 +1,20 @@
+FROM golang:1.27.3 AS builder
+
+WORKDIR /workspace
+COPY go.mod go.sum ./
+COPY vendor ./vendor
+COPY cmd ./cmd
+COPY foundation ./foundation
+COPY internal ./internal
+
+RUN CGO_ENABLED=0 GOOS=linux go build -mod=vendor -o /poc ./cmd/services/store
+
+FROM alpine:3.20
+
+RUN apk add --no-cache ca-certificates
+
+WORKDIR /app
+COPY --from=builder /poc ./poc
+
+EXPOSE 8080
+CMD ["./poc"]

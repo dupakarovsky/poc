@@ -1,0 +1,63 @@
+services:
+    postgres:
+        image: postgres:18
+        container_name: poc-postgres
+        restart: unless-stopped
+        env_file:
+            - .postgres.env
+        # guarantees that the Postgres container has started and
+        # has finished initializing (ready to accept connections)
+        healthcheck:
+            test: ['CMD-SHELL', 'pg_isready -h 127.0.0.1 -U pocsuper -d pocdb']
+            interval: 5s
+            timeout: 3s
+            retries: 5
+        ports:
+            - 127.0.0.1:5433:5432
+        volumes:
+            # PostgreSQL 18 stores versioned data under this directory.
+            - pg-data:/var/lib/postgresql
+
+            # bind-mounts
+            - ./zarf/pgvolume/init/01-init.sh:/docker-entrypoint-initdb.d/01-init.sh
+            - ./zarf/pgvolume/init/02-new-db.sh:/docker-entrypoint-initdb.d/02-new-db.sh
+            - ./zarf/pgvolume/init/03-roles.sh:/docker-entrypoint-initdb.d/03-roles.sh
+            - ./zarf/pgvolume/config:/etc/postgresql/conf.d
+        networks:
+            - poc-net
+
+    store:
+        build:
+            dockerfile: Dockerfile.poc
+        container_name: poc-store
+        restart: unless-stopped
+        env_file:
+            - .env
+        # override these values from env_file. These values will
+        # be applied for the docker container (the .env files have
+        # the values for the operating in the local environment)
+        environment:
+            DB_HOST: 'postgres'
+            DB_PORT: '5432'
+            DB_SSL_MODE: 'disable'
+            SRV_PORT: '8080'
+            # overrides the foundationlogging default path so it doesn't
+            # create a .log file. Instead,we realy on docker compose logs stores
+            # for retriving this container's logs
+            LOG_FILE_PATH: ''
+        depends_on:
+            postgres:
+                condition: service_healthy
+        ports:
+            - 127.0.0.1:7777:8080
+        networks:
+            - poc-net
+
+volumes:
+    pg-data:
+
+networks:
+    poc-net:
+        ipam:
+            config:
+                - subnet: 172.18.0.0/16
